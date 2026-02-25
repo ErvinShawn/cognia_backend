@@ -1,17 +1,23 @@
+from argon2 import hash_password
 from fastapi import FastAPI, UploadFile, File, Form
 from sqlalchemy import create_engine, text
 import requests
 from pydantic import BaseModel
 
+class UserSignup(BaseModel):
+    name: str
+    email: str
+    password: str
 
+class UserSignin(BaseModel):
+    email: str
+    password: str
 
 class Geofence(BaseModel):
     device_id: str
     latitude: float
     longitude: float
     radius_meters: float
-
-
 
 
 app = FastAPI()
@@ -94,3 +100,51 @@ def set_geofence(data: Geofence):
 
 
 
+@app.post("/auth/signup")
+def signup(user: UserSignup):
+
+
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO users (name, email, password)
+                    VALUES (:name, :email, :password)
+                """),
+                {
+                    "name": user.name,
+                    "email": user.email,
+                    "password": user.password
+                }
+            )
+            conn.commit()
+
+        return {"message": "user created"}
+
+    except Exception as e:
+        print("ERROR:", e)
+        return {"error": str(e)}
+    
+
+@app.post("/auth/signin")
+def signin(user: UserSignin):
+
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT * FROM users WHERE email = :email"),
+            {"email": user.email}
+        ).fetchone()
+
+    if not result:
+        return {"error": "invalid credentials"}
+
+    db_user = dict(result._mapping)
+
+    if user.password != db_user["password"]:
+        return {"error": "invalid credentials"}
+
+    return {
+        "message": "login successful",
+        "user_id": db_user["id"],
+        "name": db_user["name"]
+    }
