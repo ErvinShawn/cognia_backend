@@ -3,6 +3,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.routers import faces, routines, geofence, auth, devices
 from src.db import engine
 from sqlalchemy import text
+from fastapi.middleware.cors import CORSMiddleware
+
+
 
 app = FastAPI()
 app.add_middleware(
@@ -13,6 +16,14 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 @app.on_event("startup")
 def test_db_connection():

@@ -1,44 +1,64 @@
-from fastapi import APIRouter, UploadFile, File, Form
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from src.db import engine
-import requests
-import os
-from dotenv import load_dotenv
-
-load_dotenv()
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/faces", tags=["Faces"])
 
-CLOUD_NAME = os.getenv("CLOUD_NAME")
-UPLOAD_PRESET = os.getenv("UPLOAD_PRESET")
 
-@router.post("/upload")
-async def upload_face(
-    person_name: str = Form(...),
-    image: UploadFile = File(...)
-):
-    files = {"file": image.file}
-    data = {"upload_preset": UPLOAD_PRESET}
+# ---------- MODEL ----------
+class FaceCreate(BaseModel):
+    person_name: str
+    relationship: str
+    image_url: str
 
-    res = requests.post(
-        f"https://api.cloudinary.com/v1_1/{CLOUD_NAME}/image/upload",
-        files=files,
-        data=data
-    )
 
-    image_url = res.json()["secure_url"]
+# ---------- CREATE FACE ----------
+@router.post("")
+def create_face(data: FaceCreate):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(
+                text("""
+                    INSERT INTO faces (person_name, relationship, image_url)
+                    VALUES (:person_name, :relationship, :image_url)
+                    RETURNING id
+                """),
+                data.model_dump()
+            )
 
-    with engine.connect() as conn:
-        conn.execute(
-            text("INSERT INTO faces (person_name, image_url) VALUES (:name, :url)"),
-            {"name": person_name, "url": image_url}
-        )
-        conn.commit()
+            face_id = result.scalar()
+            conn.commit()
 
-    return {"image_url": image_url}
+        return {
+            "message": "face saved",
+            "id": face_id
+        }
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ---------- GET ALL ----------
 @router.get("")
 def get_faces():
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT * FROM faces"))
+        result = conn.execute(text("SELECT * FROM faces ORDER BY id DESC"))
         return [dict(row._mapping) for row in result]
+
+
+# ---------- DELETE FACE ----------
+@router.delete("/{face_id}")
+def delete_face(face_id: int):
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("DELETE FROM faces WHERE id = :id RETURNING id"),
+            {"id": face_id}
+        )
+        deleted = result.fetchone()
+        conn.commit()
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Face not found")
+
+    return {"message": "face deleted"}

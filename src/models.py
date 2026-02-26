@@ -3,9 +3,12 @@ from typing import Optional,List
 # ---------- AUTH ----------
 
 class UserSignup(BaseModel):
-    name: str
+    patient_name: str
     email: str
     password: str
+    medical_condition: str
+    emergency_contact: str
+    profile_photo_url: str
 
 class UserSignin(BaseModel):
     email: str
