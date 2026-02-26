@@ -1,37 +1,11 @@
-from fastapi import FastAPI, UploadFile, File, Form
-from sqlalchemy import create_engine, text
-import requests
-from pydantic import BaseModel
+from fastapi import APIRouter
+from sqlalchemy import text
+from src.db import engine
+from src.models import RoutineCreate, RoutineStepCreate, RoutineStepUpdate
 
+router = APIRouter(prefix="/routines", tags=["Routines"])
 
-class RoutineCreate(BaseModel):
-    device_id: str
-    patient_id: str
-    step : str
-
-
-class RoutineStepCreate(BaseModel):
-    routine_id: int
-    routine_step: str
-
-
-class RoutineStepUpdate(BaseModel):
-    step_id: int
-    routine_step: str
-
-
-app = FastAPI()
-
-
-DATABASE_URL = "postgresql://postgres:abc123@localhost/cognia_test"
-engine = create_engine(DATABASE_URL)
-
-
-CLOUD_NAME = "diq0bcrjl"
-UPLOAD_PRESET = "Test_Preset"
-
-
-@app.post("/routines/create")
+@router.post("/create")
 def create_routine(data: RoutineCreate):
 
     with engine.connect() as conn:
@@ -67,8 +41,7 @@ def create_routine(data: RoutineCreate):
         "routine_id": routine_id
     }
 
-
-@app.post("/routines/add-step")
+@router.post("/add-step")
 def add_routine_step(data: RoutineStepCreate):
 
     with engine.connect() as conn:
@@ -86,8 +59,7 @@ def add_routine_step(data: RoutineStepCreate):
 
     return {"message": "step added"}
 
-
-@app.put("/routines/update-step")
+@router.put("/update-step")
 def update_routine_step(data: RoutineStepUpdate):
 
     with engine.connect() as conn:
@@ -106,8 +78,7 @@ def update_routine_step(data: RoutineStepUpdate):
 
     return {"message": "step updated"}
 
-
-@app.delete("/routines/delete-step")
+@router.delete("/delete-step")
 def delete_routine_step(step_id: int):
 
     with engine.connect() as conn:
@@ -128,8 +99,7 @@ def delete_routine_step(step_id: int):
 
     return {"message": "step deleted", "step_id": step_id}
 
-
-@app.delete("/routines/delete")
+@router.delete("/delete")
 def delete_routine(routine_id: int):
 
     with engine.connect() as conn:
