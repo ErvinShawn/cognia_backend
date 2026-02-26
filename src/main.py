@@ -1,9 +1,18 @@
 from fastapi import FastAPI
-from src.routers import faces, routines, geofence, auth
+from fastapi.middleware.cors import CORSMiddleware
+from src.routers import faces, routines, geofence, auth, devices
 from src.db import engine
 from sqlalchemy import text
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allows all origins (perfect for local development)
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, PATCH, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
+
 
 @app.on_event("startup")
 def test_db_connection():
@@ -20,3 +29,4 @@ app.include_router(faces.router)
 app.include_router(routines.router)
 app.include_router(geofence.router)
 app.include_router(auth.router)
+app.include_router(devices.router)
