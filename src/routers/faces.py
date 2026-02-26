@@ -6,14 +6,13 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/faces", tags=["Faces"])
 
 
-# ---------- MODEL ----------
 class FaceCreate(BaseModel):
     person_name: str
     relationship: str
     image_url: str
 
 
-# ---------- CREATE FACE ----------
+
 @router.post("")
 def create_face(data: FaceCreate):
     try:
@@ -39,7 +38,6 @@ def create_face(data: FaceCreate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ---------- GET ALL ----------
 @router.get("")
 def get_faces():
     with engine.connect() as conn:
@@ -47,7 +45,7 @@ def get_faces():
         return [dict(row._mapping) for row in result]
 
 
-# ---------- DELETE FACE ----------
+
 @router.delete("/{face_id}")
 def delete_face(face_id: int):
     with engine.connect() as conn:
