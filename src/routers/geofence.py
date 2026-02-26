@@ -39,3 +39,17 @@ def set_geofence(data: GeofenceSchema):
         except Exception as e:
             print(f"Database Error: {e}")
             raise HTTPException(status_code=500, detail="Failed to save geofence")
+
+@router.get("/{device_id}")
+def get_geofence(device_id: str):
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT latitude, longitude, radius_meters FROM geofences WHERE device_id = :device_id"),
+            {"device_id": device_id}
+        ).fetchone()
+        
+        # ✅ If no record exists, return a 200 with null instead of letting it fail
+        if not result:
+            return {"latitude": None, "longitude": None, "radius_meters": None}
+            
+        return dict(result._mapping)

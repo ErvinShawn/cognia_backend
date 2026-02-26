@@ -1,50 +1,57 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from src.db import engine
-from src.models import RoutineCreate, RoutineStepCreate
+from pydantic import BaseModel
+from typing import List, Optional
 
+
+class ReminderSchema(BaseModel):
+    title: str
+    description: Optional[str] = None
+    time: str
+
+class RoutineUpdate(BaseModel):
+    device_id: str
+    user_id: int
+    reminder: ReminderSchema
 router = APIRouter(prefix="/routines", tags=["Routines"])
 
-@router.post("/create")
-def create_routine(data: RoutineCreate):
+@router.post("/save")
+def save_reminder(data: RoutineUpdate):
     with engine.connect() as conn:
-        # 1. Create the Master Routine entry
+        try:
+            query = text("""
+                INSERT INTO routines (device_id, user_id, reminders)
+                VALUES (:d, :u, jsonb_build_array(jsonb_build_object(
+                    'title', :title, 'description', :desc, 'time', :time
+                )))
+                ON CONFLICT (user_id) 
+                DO UPDATE SET 
+                    reminders = routines.reminders || jsonb_build_object(
+                        'title', :title, 'description', :desc, 'time', :time
+                    ),
+                    updated_at = CURRENT_TIMESTAMP
+            """)
+            
+            conn.execute(query, {
+                "d": data.device_id,
+                "u": data.user_id,
+                "title": data.reminder.title,
+                "desc": data.reminder.description,
+                "time": data.reminder.time
+            })
+            conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print(f"Error saving routine: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/user/{user_id}")
+def get_reminders(user_id: int):
+    with engine.connect() as conn:
         result = conn.execute(
-            text("INSERT INTO routines (device_id, patient_id) VALUES (:d, :p) RETURNING routine_id"),
-            {"d": data.device_id, "p": data.patient_id}
-        )
-        routine_id = result.scalar()
-
-        # 2. Add the first reminder to routine_steps
-        conn.execute(
-            text("""
-                INSERT INTO routine_steps (routine_id, title, description, scheduled_time)
-                VALUES (:rid, :title, :desc, :time)
-            """),
-            {
-                "rid": routine_id,
-                "title": data.step.title,
-                "desc": data.step.description,
-                "time": data.step.time
-            }
-        )
-        conn.commit()
-    return {"message": "Master routine created", "routine_id": routine_id}
-
-@router.post("/add-step")
-def add_routine_step(data: RoutineStepCreate):
-    with engine.connect() as conn:
-        conn.execute(
-            text("""
-                INSERT INTO routine_steps (routine_id, title, description, scheduled_time)
-                VALUES (:rid, :title, :desc, :time)
-            """),
-            {
-                "rid": data.routine_id,
-                "title": data.title,
-                "desc": data.description,
-                "time": data.time
-            }
-        )
-        conn.commit()
-    return {"message": "Reminder added to routine"}
+            text("SELECT reminders FROM routines WHERE user_id = :u"),
+            {"u": user_id}
+        ).fetchone()
+        
+        return result[0] if result else []
