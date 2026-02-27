@@ -1,125 +1,57 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from sqlalchemy import text
 from src.db import engine
-from src.models import RoutineCreate, RoutineStepCreate, RoutineStepUpdate
+from pydantic import BaseModel
+from typing import List, Optional
 
+
+class ReminderSchema(BaseModel):
+    title: str
+    description: Optional[str] = None
+    time: str
+
+class RoutineUpdate(BaseModel):
+    device_id: str
+    user_id: int
+    reminder: ReminderSchema
 router = APIRouter(prefix="/routines", tags=["Routines"])
 
-@router.post("/create")
-def create_routine(data: RoutineCreate):
+@router.post("/save")
+def save_reminder(data: RoutineUpdate):
+    with engine.connect() as conn:
+        try:
+            query = text("""
+                INSERT INTO routines (device_id, user_id, reminders)
+                VALUES (:d, :u, jsonb_build_array(jsonb_build_object(
+                    'title', :title, 'description', :desc, 'time', :time
+                )))
+                ON CONFLICT (user_id) 
+                DO UPDATE SET 
+                    reminders = routines.reminders || jsonb_build_object(
+                        'title', :title, 'description', :desc, 'time', :time
+                    ),
+                    updated_at = CURRENT_TIMESTAMP
+            """)
+            
+            conn.execute(query, {
+                "d": data.device_id,
+                "u": data.user_id,
+                "title": data.reminder.title,
+                "desc": data.reminder.description,
+                "time": data.reminder.time
+            })
+            conn.commit()
+            return {"status": "success"}
+        except Exception as e:
+            print(f"Error saving routine: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/user/{user_id}")
+def get_reminders(user_id: int):
     with engine.connect() as conn:
         result = conn.execute(
-            text("""
-                INSERT INTO routines (device_id, patient_id)
-                VALUES (:device, :patient)
-                RETURNING routine_id
-            """),
-            {
-                "device": data.device_id,
-                "patient": data.patient_id
-            }
-        )
-
-        routine_id = result.scalar()
-        conn.commit()
-
-        conn.execute(
-            text("""
-                INSERT INTO routine_steps (routine_id, routine_step)
-                VALUES (:rid, :step)
-            """),
-            {
-                "rid": routine_id,
-                "step": data.step
-            }
-        )
-        conn.commit()
-
-    return {
-        "message": "routine created",
-        "routine_id": routine_id
-    }
-
-@router.post("/add-step")
-def add_routine_step(data: RoutineStepCreate):
-
-    with engine.connect() as conn:
-        conn.execute(
-            text("""
-                INSERT INTO routine_steps (routine_id, routine_step)
-                VALUES (:rid, :step)
-            """),
-            {
-                "rid": data.routine_id,
-                "step": data.routine_step
-            }
-        )
-        conn.commit()
-
-    return {"message": "step added"}
-
-@router.put("/update-step")
-def update_routine_step(data: RoutineStepUpdate):
-
-    with engine.connect() as conn:
-        conn.execute(
-            text("""
-                UPDATE routine_steps
-                SET routine_step = :step
-                WHERE step_id = :id
-            """),
-            {
-                "step": data.routine_step,
-                "id": data.step_id
-            }
-        )
-        conn.commit()
-
-    return {"message": "step updated"}
-
-@router.delete("/delete-step")
-def delete_routine_step(step_id: int):
-
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                DELETE FROM routine_steps
-                WHERE step_id = :id
-                RETURNING step_id
-            """),
-            {"id": step_id}
-        )
-
-        deleted = result.fetchone()
-        conn.commit()
-
-    if not deleted:
-        return {"message": "step not found"}
-
-    return {"message": "step deleted", "step_id": step_id}
-
-@router.delete("/delete")
-def delete_routine(routine_id: int):
-
-    with engine.connect() as conn:
-        result = conn.execute(
-            text("""
-                DELETE FROM routines
-                WHERE routine_id = :id
-                RETURNING routine_id
-            """),
-            {"id": routine_id}
-        )
-
-        deleted = result.fetchone()
-        conn.commit()
-
-    if not deleted:
-        return {"message": "routine not found"}
-
-    return {
-        "message": "routine deleted",
-        "routine_id": routine_id,
-        "note": "all steps removed automatically"
-    }
+            text("SELECT reminders FROM routines WHERE user_id = :u"),
+            {"u": user_id}
+        ).fetchone()
+        
+        return result[0] if result else []

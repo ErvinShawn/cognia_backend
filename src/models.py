@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from typing import Optional,List
 # ---------- AUTH ----------
 
 class UserSignup(BaseModel):
@@ -24,15 +24,45 @@ class Geofence(BaseModel):
 
 # ---------- ROUTINES ----------
 
-class RoutineCreate(BaseModel):
+# This represents a single step within a routine
+# class RoutineStepSchema(BaseModel):
+#     title: str
+#     description: Optional[str] = None
+#     time: str
+
+# class RoutineCreate(BaseModel):
+#     device_id: str
+#     patient_id: int
+#     step: RoutineStepSchema
+
+# class RoutineStepCreate(BaseModel):
+#     routine_id: int
+#     title: str
+#     description: Optional[str] = None
+#     time: str
+
+# ---------- ROUTINES (JSONB VERSION) ----------
+
+class ReminderSchema(BaseModel):
+    title: str
+    description: Optional[str] = None
+    time: str
+
+class RoutineUpdate(BaseModel):
     device_id: str
-    patient_id: str
-    step: str
+    user_id: int
+    reminder: ReminderSchema
 
-class RoutineStepCreate(BaseModel):
-    routine_id: int
-    routine_step: str
+# ------Device---
+class DeviceCreate(BaseModel):
+    device_id: str
+    user_id: int 
 
-class RoutineStepUpdate(BaseModel):
-    step_id: int
-    routine_step: str
+class DeviceUpdate(BaseModel):
+    status: Optional[str] = None
+    battery_level: Optional[int] = None
+    is_active: Optional[bool] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    face_detection: Optional[bool] = None
+    object_detection: Optional[bool] = None
