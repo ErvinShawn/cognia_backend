@@ -63,7 +63,7 @@ def _validate_device(device_id: str):
     """Ensure device exists"""
     with engine.connect() as conn:
         device = conn.execute(
-            text("SELECT id FROM devices WHERE device_id = :did"),
+            text("SELECT device_id FROM devices WHERE device_id = :did"),
             {"did": device_id}
         ).fetchone()
 
